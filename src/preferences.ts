@@ -1,7 +1,7 @@
 import { campusNames, defaultFavorites, serviceById, services, validateService } from './data'
 import type { Service } from './data'
 
-// 沿用旧键，升级数据格式不会丢掉用户已经保存的收藏与历史。
+// 沿用旧键，升级数据格式不会丢掉用户已经保存的收藏与自建服务。
 export const STORAGE_KEY = 'hdu-quick-station:v1'
 export const TRASH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_CUSTOM_SERVICES = 200
@@ -17,8 +17,6 @@ export interface TrashEntry {
 export interface Preferences {
   version: 3
   favorites: string[]
-  recent: string[]
-  recordHistory: boolean
   customServices: Service[]
   serviceOverrides: Service[]
   trash: TrashEntry[]
@@ -29,8 +27,6 @@ export function initialPreferences(): Preferences {
   return {
     version: 3,
     favorites: [...defaultFavorites],
-    recent: [],
-    recordHistory: true,
     customServices: [],
     serviceOverrides: [],
     trash: [],
@@ -162,7 +158,6 @@ export function parsePreferences(input: unknown, now = Date.now()): Preferences 
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('文件内容不是有效的收藏备份。')
   const data = input as Record<string, unknown>
   if (data.version !== 1 && data.version !== 2 && data.version !== 3) throw new Error('备份版本不受支持，请选择本网站导出的 JSON 文件。')
-  if (typeof data.recordHistory !== 'boolean') throw new Error('备份中的历史记录设置不完整或格式不正确。')
 
   let lists: Pick<Preferences, 'customServices' | 'serviceOverrides'>
   if (data.version === 1) {
@@ -189,12 +184,9 @@ export function parsePreferences(input: unknown, now = Date.now()): Preferences 
     ? validateTrash(data.trash, available, deleted, lists.customServices.length, now)
     : []
   const favorites = validateReferences(data.favorites, available, '收藏', available.size)
-  const recent = validateReferences(data.recent, available, '最近使用记录', 8)
   return {
     version: 3,
     favorites,
-    recent: data.recordHistory ? recent : [],
-    recordHistory: data.recordHistory,
     ...lists,
     trash,
     deletedBuiltinIds,
@@ -231,7 +223,6 @@ export function trashService(p: Preferences, id: string, now = Date.now()): Pref
     customServices: withoutService(current.customServices, id),
     serviceOverrides: withoutService(current.serviceOverrides, id),
     favorites: withoutReference(current.favorites, id),
-    recent: withoutReference(current.recent, id),
     deletedBuiltinIds: serviceById.has(id) ? [...current.deletedBuiltinIds, id] : current.deletedBuiltinIds,
     trash: [{ service, deletedAt: now, favoriteIndex: current.favorites.indexOf(id) }, ...current.trash],
   }
@@ -254,7 +245,6 @@ export function restoreService(p: Preferences, id: string, now = Date.now()): Pr
   return {
     ...current,
     favorites,
-    // 最近使用不随恢复重建，以免把删除前的行为伪装成最近使用。
     customServices: builtin ? current.customServices : [service, ...current.customServices],
     serviceOverrides: builtin && service.modified ? [service, ...current.serviceOverrides] : current.serviceOverrides,
     deletedBuiltinIds: builtin ? withoutReference(current.deletedBuiltinIds, id) : current.deletedBuiltinIds,
@@ -270,10 +260,6 @@ export function permanentlyDeleteService(p: Preferences, id: string): Preference
 
 export function emptyTrash(p: Preferences): Preferences {
   return p.trash.length ? { ...p, trash: [] } : p
-}
-
-export function addRecent(current: string[], id: string) {
-  return [id, ...current.filter(item => item !== id)].slice(0, 8)
 }
 
 export function moveFavorite(current: string[], index: number, direction: number) {

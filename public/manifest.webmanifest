@@ -1,0 +1,16 @@
+{
+  "name": "杭电快捷站 · 校园里的事，从这里开始",
+  "short_name": "杭电快捷站",
+  "description": "把学习、办事与校园生活的入口收在一起，收藏与自建服务保存在本机浏览器。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "background_color": "#e8f1e4",
+  "theme_color": "#f6f7f3",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

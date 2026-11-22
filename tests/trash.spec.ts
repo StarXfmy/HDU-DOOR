@@ -5,7 +5,7 @@ import { services } from '../src/data'
 
 const key = 'hdu-quick-station:v1'
 const ttl = 7 * 24 * 60 * 60 * 1000
-const blank = { version: 3, favorites: [], recent: [], recordHistory: true, customServices: [], serviceOverrides: [], trash: [], deletedBuiltinIds: [] }
+const blank = { version: 3, favorites: [], customServices: [], serviceOverrides: [], trash: [], deletedBuiltinIds: [] }
 const builtin = (id: string) => ({ ...services.find(service => service.id === id)! })
 const custom = { ...builtin('hdu'), id: 'custom-recycle', name: '我的资料入口', custom: true }
 
@@ -36,8 +36,8 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.welcome-dialog')).toHaveCount(0)
 })
 
-test('删除内置服务、取消确认、恢复原收藏位置且不伪造最近记录', async ({ page }) => {
-  await importBackup(page, { ...blank, favorites: ['hdu', 'digital', 'pta'], recent: ['digital'] })
+test('删除内置服务、取消确认、恢复原收藏位置', async ({ page }) => {
+  await importBackup(page, { ...blank, favorites: ['hdu', 'digital', 'pta'] })
   await page.locator('.favorites-grid').getByRole('button', { name: '查看数字杭电详情', exact: true }).click()
   await page.getByRole('button', { name: '删除', exact: true }).click()
   await page.getByRole('button', { name: '取消', exact: true }).click()
@@ -56,7 +56,7 @@ test('删除内置服务、取消确认、恢复原收藏位置且不伪造最�
   await expect(page.getByRole('heading', { name: '回收站是空的' })).toBeVisible()
   await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
   await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['学校官网', '数字杭电', 'PTA'])
-  expect((await state(page)).recent).toEqual([])
+  expect(await state(page)).not.toHaveProperty('recent')
   await page.reload()
   expect((await state(page)).deletedBuiltinIds).toEqual([])
   await expect(page.locator('.all-grid [data-service="digital"]')).toBeVisible()
@@ -79,7 +79,7 @@ test('恢复编辑过的内置服务，保留名称网址图标与内容', async
 test('自定义服务图标和二维码完整回收与恢复', async ({ page }) => {
   const image = `data:image/png;base64,${(await readFile('public/hui798-code.png')).toString('base64')}`
   const service = { ...custom, kind: 'qr', url: undefined, qr: image, iconImage: image, note: '保留的使用说明', client: '支付宝' }
-  await importBackup(page, { ...blank, customServices: [service], favorites: [custom.id], recent: [custom.id] })
+  await importBackup(page, { ...blank, customServices: [service], favorites: [custom.id] })
   await trashService(page, custom.name)
   let stored = await state(page)
   expect(stored.customServices).toHaveLength(0)
@@ -92,7 +92,7 @@ test('自定义服务图标和二维码完整回收与恢复', async ({ page }) 
   stored = await state(page)
   expect(stored.customServices[0]).toMatchObject({ iconImage: image, qr: image, note: '保留的使用说明', client: '支付宝' })
   expect(stored.favorites).toEqual([custom.id])
-  expect(stored.recent).toEqual([])
+  expect(stored).not.toHaveProperty('recent')
 })
 
 test('永久删除内置服务需要确认，刷新后不会重新出现', async ({ page }) => {

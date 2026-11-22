@@ -30,7 +30,7 @@ test('欢迎页进入后滑离，本标签刷新不重放，可以在设置重�
   await expect(page.getByRole('dialog')).toHaveAccessibleName(/校园里的事，\s*从这里\s*开始。/)
   await expect(page.getByRole('button', { name: '进入', exact: true })).toBeFocused()
   await enter(page)
-  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(4)
+  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(5)
   await expect(page.locator('.all-grid .service-card')).toHaveCount(8)
   await expect(page.getByText('按场景找服务', { exact: true })).toHaveCount(0)
   await expect(page.locator('.sidebar')).toHaveCount(0)
@@ -45,9 +45,9 @@ test('欢迎页进入后滑离，本标签刷新不重放，可以在设置重�
 
 test('同页展开收起全部服务，整卡先详情后打开网址', async ({ page, context }) => {
   await enter(page)
-  await expect(page.getByRole('heading', { name: '最近使用', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '最近使用', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部', exact: true }).click()
-  await expect(page.locator('.all-grid .service-card')).toHaveCount(27)
+  await expect(page.locator('.all-grid .service-card')).toHaveCount(28)
   await expect(page.locator('.service-card').getByRole('link')).toHaveCount(0)
   await page.locator('.all-grid').getByRole('button', { name: '查看学校官网详情', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveAccessibleName('学校官网')
@@ -58,7 +58,7 @@ test('同页展开收起全部服务，整卡先详情后打开网址', async ({
   await popup.waitForLoadState()
   expect(popup.url()).toBe('https://www.hdu.edu.cn/')
   await popup.close()
-  await expect(page.locator('.recent-grid [data-service="hdu"]')).toHaveCount(1)
+  await expect(page.locator('.recent-grid')).toHaveCount(0)
   await page.getByRole('button', { name: '收起', exact: true }).click()
   await expect(page.locator('.all-grid .service-card')).toHaveCount(8)
 })
@@ -75,8 +75,8 @@ test('添加名称网址介绍图标颜色，立即可查并刷新保留', async
   await expect(page.locator('.detail-summary .service-icon')).toHaveClass(/purple/)
   await page.getByRole('button', { name: '加入常用', exact: true }).click()
   await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
-  await expect(page.locator('.all-grid .service-card')).toHaveCount(28)
-  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(5)
+  await expect(page.locator('.all-grid .service-card')).toHaveCount(29)
+  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(6)
   await page.reload()
   await page.getByRole('searchbox').fill('我的课程')
   await expect(page.locator('.search-results .card-copy strong')).toHaveText('我的课程笔记')
@@ -100,7 +100,7 @@ test('编辑内置服务后常用与搜索立即改变，原有收藏不丢失',
   await expect(page.locator('.favorites-grid [data-service="digital"] .card-copy strong')).toHaveText('我的校园大厅')
   await page.reload()
   await expect(page.locator('.all-grid [data-service="digital"] .card-copy strong')).toHaveText('我的校园大厅')
-  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(4)
+  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(5)
 })
 
 test('标题命中时不混入介绍匹配，没有标题命中才搜内容和别名', async ({ page }) => {
@@ -191,13 +191,13 @@ test('自建二维码和文字指引，切换入口类型移除旧网址', async
   await expect(page.getByRole('link', { name: '打开网址', exact: true })).toHaveCount(0)
 })
 
-test('导入旧版备份保留收藏历史，重新导出升级为新版', async ({ page }) => {
+test('导入旧版备份保留收藏并丢弃历史记录，重新导出升级为新版', async ({ page }) => {
   await enter(page)
   await importJson(page, oldBackup)
   await page.getByRole('button', { name: '确认替换并恢复', exact: true }).click()
   await expect(page.locator('.favorites-grid .service-card')).toHaveCount(2)
   await expect(page.locator('.favorites-grid .card-copy strong').first()).toHaveText('PTA')
-  await expect(page.locator('.recent-grid [data-service="weather"]')).toHaveCount(1)
+  await expect(page.locator('.recent-grid')).toHaveCount(0)
   await page.reload()
   await expect(page.locator('.favorites-grid .service-card')).toHaveCount(2)
   await page.getByRole('button', { name: '设置', exact: true }).click()
@@ -207,7 +207,8 @@ test('导入旧版备份保留收藏历史，重新导出升级为新版', async
   const saved = JSON.parse(await readFile((await download.path())!, 'utf8'))
   expect(saved.version).toBe(3)
   expect(saved.favorites).toEqual(['pta', 'hdu'])
-  expect(saved.recent).toEqual(['weather'])
+  expect(saved).not.toHaveProperty('recent')
+  expect(saved).not.toHaveProperty('recordHistory')
 })
 
 test('导入取消无影响，恶意网址备份拒绝且原数据不变', async ({ page }) => {
@@ -222,9 +223,9 @@ test('导入取消无影响，恶意网址备份拒绝且原数据不变', async
   expect(await page.evaluate(k => localStorage.getItem(k), key)).toBe(before)
 })
 
-test('自定义服务删除确认，同时清理收藏与历史', async ({ page }) => {
+test('自定义服务删除确认，同时清理收藏', async ({ page }) => {
   await enter(page)
-  await importJson(page, { ...blank, customServices: [newService()], favorites: ['custom-test'], recent: ['custom-test'] })
+  await importJson(page, { ...blank, customServices: [newService()], favorites: ['custom-test'] })
   await page.getByRole('button', { name: '确认替换并恢复', exact: true }).click()
   await page.locator('.favorites-grid').getByRole('button', { name: '查看我的学习资料详情', exact: true }).click()
   await page.getByRole('button', { name: '删除', exact: true }).click()
@@ -237,23 +238,26 @@ test('自定义服务删除确认，同时清理收藏与历史', async ({ page 
   expect(data.customServices).toHaveLength(0)
   expect(data.trash[0].service.id).toBe('custom-test')
   expect(data.favorites).toEqual([])
-  expect(data.recent).toEqual([])
+  expect(data).not.toHaveProperty('recent')
 })
 
-test('排序立即生效，关闭历史不影响收藏', async ({ page }) => {
+test('默认常用五个入口，排序立即生效，整理模式只留前后移', async ({ page }) => {
   await enter(page)
+  await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['数你最灵', '学习通', '中国大学 MOOC', 'Day Plan', '数字杭电'])
+  await expect(page.locator('.favorites-grid [data-service="dayplan"] img.uploaded-icon')).toBeVisible()
   await page.getByRole('button', { name: '整理', exact: true }).click()
-  await page.getByRole('button', { name: '前移杭电助手', exact: true }).click()
-  await expect(page.locator('.favorites-grid .card-copy strong').first()).toHaveText('杭电助手')
-  await expect(page.getByRole('button', { name: '前移杭电助手', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: /移除常用/ })).toHaveCount(0)
+  await page.getByRole('button', { name: '前移学习通', exact: true }).click()
+  await expect(page.locator('.favorites-grid .card-copy strong').first()).toHaveText('学习通')
+  await expect(page.getByRole('button', { name: '前移学习通', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '完成', exact: true }).click()
-  await page.getByRole('button', { name: '设置', exact: true }).click()
-  await page.getByRole('switch', { name: '记录最近使用' }).click()
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('heading', { name: '最近使用', exact: true })).toHaveCount(0)
-  await page.reload()
-  await expect(page.locator('.favorites-grid .card-copy strong').first()).toHaveText('杭电助手')
+  await page.locator('.favorites-grid').getByRole('button', { name: '取消收藏学习通', exact: true }).click()
   await expect(page.locator('.favorites-grid .service-card')).toHaveCount(4)
+  await expect(page.locator('.favorites-grid [data-service="chaoxing"]')).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('.favorites-grid .service-card')).toHaveCount(4)
+  await expect(page.locator('.favorites-grid [data-service="chaoxing"]')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '整理', exact: true })).toBeVisible()
 })
 
 test('图片原有扫码入口与下载可用', async ({ page }) => {
@@ -275,11 +279,11 @@ test('多项服务修改和图片在完整备份往返中保持一致', async ({
   await enter(page)
   const overrides = [{ ...services[0], name: '编辑后的数字杭电', url: 'https://www.hdu.edu.cn/' }]
   const customServices = [newService('custom-a'), newService('custom-b', '另一条服务')]
-  await importJson(page, { ...blank, customServices, serviceOverrides: overrides, favorites: ['custom-a', 'digital'], recent: ['custom-b'] })
+  await importJson(page, { ...blank, customServices, serviceOverrides: overrides, favorites: ['custom-a', 'digital'] })
   await page.getByRole('button', { name: '确认替换并恢复', exact: true }).click()
   await page.reload()
   await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['我的学习资料', '编辑后的数字杭电'])
-  await expect(page.locator('.recent-grid .card-copy strong')).toHaveText('另一条服务')
+  await expect(page.locator('.recent-grid')).toHaveCount(0)
   await page.getByRole('button', { name: '设置', exact: true }).click()
   const pending = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出备份', exact: true }).click()

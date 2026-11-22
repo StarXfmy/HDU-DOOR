@@ -5,7 +5,7 @@ import {
 } from './data'
 import type { Service } from './data'
 import {
-  addRecent, emptyTrash, getCatalog, initialPreferences, moveFavorite, parsePreferences,
+  emptyTrash, getCatalog, initialPreferences, moveFavorite, parsePreferences,
   permanentlyDeleteService, pruneTrash, restoreService, STORAGE_KEY, trashService, TRASH_RETENTION_MS,
 } from './preferences'
 import type { Preferences, TrashEntry } from './preferences'
@@ -32,10 +32,10 @@ function legacyPreferences(changes: Record<string, unknown> = {}) {
 }
 
 describe('服务目录与搜索', () => {
-  it('保留 27 个唯一服务、原始来源与入口元信息，所有服务通过验证', () => {
-    expect(services).toHaveLength(27)
-    expect(new Set(services.map(item => item.id)).size).toBe(27)
-    expect(services.filter(item => item.kind === 'web')).toHaveLength(21)
+  it('保留 28 个唯一服务、原始来源与入口元信息，所有服务通过验证', () => {
+    expect(services).toHaveLength(28)
+    expect(new Set(services.map(item => item.id)).size).toBe(28)
+    expect(services.filter(item => item.kind === 'web')).toHaveLength(22)
     expect(services.every(item => item.kind !== 'web' || item.url?.startsWith('https://'))).toBe(true)
     expect(services.every(item => item.kind !== 'qr' || item.qr?.startsWith('/'))).toBe(true)
     expect(sourceUrl).toBe('https://hdu-campus-hub-bkmscmdessk.qoder.zone/')
@@ -197,13 +197,13 @@ describe('服务校验和安全输入', () => {
 })
 
 describe('本地收藏备份和迁移', () => {
-  it('沿用真实数据的旧存储键，默认 4 个收藏，所有默认数组互不共享', () => {
+  it('沿用真实数据的旧存储键，默认 5 个常用，所有默认数组互不共享', () => {
     expect(STORAGE_KEY).toBe('hdu-quick-station:v1')
+    expect(defaultFavorites).toEqual(['smart', 'chaoxing', 'mooc', 'dayplan', 'digital'])
     const first = initialPreferences()
     const second = initialPreferences()
-    expect(first).toEqual({ version: 3, favorites: defaultFavorites, recent: [], recordHistory: true, customServices: [], serviceOverrides: [], trash: [], deletedBuiltinIds: [] })
+    expect(first).toEqual({ version: 3, favorites: defaultFavorites, customServices: [], serviceOverrides: [], trash: [], deletedBuiltinIds: [] })
     first.favorites.push('pta')
-    first.recent.push('pta')
     first.customServices.push(customService())
     first.serviceOverrides.push({ ...services[0] })
     first.trash.push({ service: customService(), deletedAt: 0, favoriteIndex: -1 })
@@ -212,46 +212,52 @@ describe('本地收藏备份和迁移', () => {
     expect(parsePreferences(JSON.parse(JSON.stringify(second)))).toEqual(second)
   })
 
-  it.each(Object.keys(campusNames))('迁移合法 v1 %s 设置，保留收藏、历史及顺序，移除校区设置', campus => {
+  it.each(Object.keys(campusNames))('迁移合法 v1 %s 设置，保留收藏与顺序，移除校区与历史字段', campus => {
     const original = legacyPreferences({ campus })
     const before = JSON.stringify(original)
     const parsed = parsePreferences(original)
     expect(parsed).toEqual({
-      version: 3, favorites: ['pta', 'hdu', 'digital'], recent: ['hdu', 'pta'],
-      recordHistory: true, customServices: [], serviceOverrides: [], trash: [], deletedBuiltinIds: [],
+      version: 3, favorites: ['pta', 'hdu', 'digital'],
+      customServices: [], serviceOverrides: [], trash: [], deletedBuiltinIds: [],
     })
     expect(parsed.favorites).not.toBe(original.favorites)
     expect(JSON.stringify(original)).toBe(before)
     expect(parsed).not.toHaveProperty('campus')
     expect(parsed).not.toHaveProperty('includeUnverified')
+    expect(parsed).not.toHaveProperty('recent')
+    expect(parsed).not.toHaveProperty('recordHistory')
   })
 
   it.each([
     { campus: undefined }, { campus: 'unknown-campus' }, { campus: '__proto__' }, { campus: 'constructor' },
-    { includeUnverified: undefined }, { includeUnverified: 'yes' }, { recordHistory: 1 },
-    { favorites: ['pta', 'pta'] }, { recent: ['missing'] }, { favorites: ['custom-test'] },
+    { includeUnverified: undefined }, { includeUnverified: 'yes' },
+    { favorites: ['pta', 'pta'] }, { favorites: ['custom-test'] },
     { favorites: services.map(item => item.id).concat('pta') },
-    { recent: services.slice(0, 9).map(item => item.id) },
   ])('迁移前仍严格拒绝损坏的 v1：%j', changes => {
     expect(() => parsePreferences(legacyPreferences(changes))).toThrow()
   })
 
-  it('迁移关闭记录的 v1 时清空历史，但不接受无效历史', () => {
-    expect(parsePreferences(legacyPreferences({ recordHistory: false })).recent).toEqual([])
-    expect(() => parsePreferences(legacyPreferences({ recordHistory: false, recent: ['missing'] }))).toThrow()
+  it('旧备份里的历史记录字段一律忽略，不再因它们报错', () => {
+    for (const changes of [{ recordHistory: false }, { recordHistory: 1 }, { recordHistory: 'yes' }, { recent: ['missing'] }, { recent: services.slice(0, 9).map(item => item.id) }]) {
+      const parsed = parsePreferences(legacyPreferences(changes))
+      expect(parsed).not.toHaveProperty('recent')
+      expect(parsed).not.toHaveProperty('recordHistory')
+      expect(parsed.favorites).toEqual(['pta', 'hdu', 'digital'])
+    }
   })
 
-  it('迁移无回收站字段的 v2，保留自建、修改、收藏和历史', () => {
+  it('迁移无回收站字段的 v2，保留自建、修改与收藏并丢弃历史字段', () => {
+    const customServices = [customService({ iconImage: png })]
+    const serviceOverrides = [{ ...services[0], name: '修改后的名称', modified: true }]
     const original = {
       version: 2, recordHistory: true, favorites: ['custom-test', 'digital'], recent: ['digital'],
-      customServices: [customService({ iconImage: png })],
-      serviceOverrides: [{ ...services[0], name: '修改后的名称', modified: true }],
+      customServices, serviceOverrides,
     }
     const before = JSON.stringify(original)
-    expect(parsePreferences(original)).toEqual({ ...original, version: 3, trash: [], deletedBuiltinIds: [] })
-    expect(parsePreferences({ ...original, recordHistory: false }).recent).toEqual([])
+    expect(parsePreferences(original)).toEqual({ version: 3, favorites: ['custom-test', 'digital'], customServices, serviceOverrides, trash: [], deletedBuiltinIds: [] })
+    expect(parsePreferences(original)).not.toHaveProperty('recent')
     expect(JSON.stringify(original)).toBe(before)
-    for (const key of ['customServices', 'serviceOverrides', 'recordHistory', 'favorites', 'recent']) {
+    for (const key of ['customServices', 'serviceOverrides', 'favorites']) {
       const invalid: Record<string, unknown> = { ...original }
       delete invalid[key]
       expect(() => parsePreferences(invalid)).toThrow()
@@ -259,10 +265,10 @@ describe('本地收藏备份和迁移', () => {
     expect(() => parsePreferences({ ...original, favorites: ['unknown'] })).toThrow()
   })
 
-  it('v3 完整往返保留自建、编辑、图片、文字、收藏排序与历史', () => {
+  it('v3 完整往返保留自建、编辑、图片、文字与收藏排序', () => {
     const original = {
       ...initialPreferences(),
-      favorites: ['custom-image', 'digital', 'custom-test'], recent: ['custom-test', 'digital'],
+      favorites: ['custom-image', 'digital', 'custom-test'],
       customServices: [
         customService({ description: '自定义介绍', note: '完整说明', client: '浏览器', login: '无需登录', iconImage: png, modified: true }),
         customService({ id: 'custom-image', name: '自建二维码', kind: 'qr', url: undefined, qr: webp, iconImage: jpeg }),
@@ -287,7 +293,7 @@ describe('本地收藏备份和迁移', () => {
     }
     const original = JSON.stringify(preferences)
     const catalog = getCatalog(preferences)
-    expect(catalog).toHaveLength(29)
+    expect(catalog).toHaveLength(30)
     expect(catalog.map(item => item.id)).toEqual(['custom-test', 'custom-second', ...services.map(item => item.id)])
     expect(catalog[0].custom).toBe(true)
     expect(catalog[2]).toMatchObject({ id: 'digital', name: '我的数字杭电', modified: true })
@@ -310,12 +316,11 @@ describe('本地收藏备份和迁移', () => {
 
   it('拒绝非对象或缺失 v3 设置', () => {
     for (const input of [null, [], 'text', 1]) expect(() => parsePreferences(input)).toThrow()
-    for (const key of ['favorites', 'recent', 'recordHistory', 'customServices', 'serviceOverrides', 'trash', 'deletedBuiltinIds']) {
+    for (const key of ['favorites', 'customServices', 'serviceOverrides', 'trash', 'deletedBuiltinIds']) {
       const input: Record<string, unknown> = { ...initialPreferences() }
       delete input[key]
       expect(() => parsePreferences(input)).toThrow()
     }
-    expect(() => parsePreferences({ ...initialPreferences(), recordHistory: 'yes' })).toThrow()
     expect(() => parsePreferences({ ...initialPreferences(), customServices: {} })).toThrow()
     expect(() => parsePreferences({ ...initialPreferences(), serviceOverrides: null })).toThrow()
   })
@@ -343,46 +348,38 @@ describe('本地收藏备份和迁移', () => {
     const customServices = Array.from({ length: 200 }, (_, i) => customService({ id: `custom-${i}` }))
     const favorites = [...customServices.map(item => item.id), ...services.map(item => item.id)]
     const preferences = { ...initialPreferences(), customServices, favorites }
-    expect(parsePreferences(preferences).favorites).toHaveLength(227)
-    expect(getCatalog(preferences)).toHaveLength(227)
+    expect(parsePreferences(preferences).favorites).toHaveLength(228)
+    expect(getCatalog(preferences)).toHaveLength(228)
     expect(() => parsePreferences({ ...preferences, customServices: [...customServices, customService()] })).toThrow('200')
     expect(() => parsePreferences({ ...preferences, serviceOverrides: [...services, services[0]] })).toThrow()
   })
 
-  it.each(['favorites', 'recent'])('拒绝 %s 的重复、未知或错误类型引用', key => {
+  it('拒绝收藏列表的重复、未知或错误类型引用', () => {
     const base = { ...initialPreferences(), customServices: [customService()] }
     for (const list of [['pta', 'pta'], ['custom-test', 'custom-test'], ['missing'], ['custom-deleted'], [1], 'pta', null, new Array(1)]) {
-      expect(() => parsePreferences({ ...base, [key]: list })).toThrow()
+      expect(() => parsePreferences({ ...base, favorites: list })).toThrow()
     }
-    expect(parsePreferences({ ...base, [key]: ['custom-test'] })[key as 'favorites' | 'recent']).toEqual(['custom-test'])
-    expect(() => parsePreferences({ ...initialPreferences(), [key]: ['custom-test'] })).toThrow()
+    expect(parsePreferences({ ...base, favorites: ['custom-test'] }).favorites).toEqual(['custom-test'])
+    expect(() => parsePreferences({ ...initialPreferences(), favorites: ['custom-test'] })).toThrow()
   })
 
-  it('历史最多 8 条，关闭记录也不能夹带无效或超额引用', () => {
-    const recent = services.slice(0, 8).map(item => item.id)
-    expect(parsePreferences({ ...initialPreferences(), recent }).recent).toEqual(recent)
-    for (const recordHistory of [true, false]) {
-      expect(() => parsePreferences({ ...initialPreferences(), recordHistory, recent: [...recent, 'weather'] })).toThrow()
-      expect(() => parsePreferences({ ...initialPreferences(), recordHistory, recent: ['missing'] })).toThrow()
-    }
-  })
-
-  it('忽略未知字段，在关闭记录时清空历史，不修改输入', () => {
+  it('忽略未知字段和已废弃的历史记录字段，不修改输入', () => {
     const input = {
-      ...initialPreferences(), recordHistory: false, recent: ['pta'], malicious: '<script>',
+      ...initialPreferences(), recent: ['pta'], recordHistory: false, malicious: '<script>',
       campus: '__proto__', includeUnverified: '无效的旧设置',
       customServices: [{ ...customService(), extra: '<svg>' }],
     }
     const before = JSON.stringify(input)
     const parsed = parsePreferences(input)
-    expect(parsed.recent).toEqual([])
+    expect(parsed).not.toHaveProperty('recent')
+    expect(parsed).not.toHaveProperty('recordHistory')
     for (const key of ['malicious', 'campus', 'includeUnverified']) expect(parsed).not.toHaveProperty(key)
     expect(parsed.customServices[0]).not.toHaveProperty('extra')
     expect(JSON.stringify(input)).toBe(before)
   })
 
-  it('接受空收藏与空历史，拒绝导入不会更改已有数据', () => {
-    expect(parsePreferences({ ...initialPreferences(), favorites: [], recent: [] }).favorites).toEqual([])
+  it('接受空收藏，拒绝导入不会更改已有数据', () => {
+    expect(parsePreferences({ ...initialPreferences(), favorites: [] }).favorites).toEqual([])
     const original = initialPreferences()
     expect(() => parsePreferences({ ...original, favorites: ['javascript:alert(1)'] })).toThrow()
     expect(original).toEqual(initialPreferences())
@@ -396,18 +393,17 @@ describe('服务回收站与永久删除', () => {
   })
 
   it.each(services)('内置 $id 可删除与恢复，未编辑服务不伪装成用户修改', service => {
-    const original = { ...initialPreferences(), recent: [service.id] }
+    const original = initialPreferences()
     const before = JSON.stringify(original)
     const deleted = trashService(original, service.id, now)
     expect(deleted.trash).toEqual([entry(service, { favoriteIndex: original.favorites.indexOf(service.id) })])
     expect(deleted.deletedBuiltinIds).toEqual([service.id])
     expect(deleted.favorites).not.toContain(service.id)
-    expect(deleted.recent).toEqual([])
     expect(deleted.serviceOverrides).toEqual([])
     expect(getCatalog(deleted).map(item => item.id)).not.toContain(service.id)
     expect(parsePreferences(deleted, now)).toEqual(deleted)
     const restored = restoreService(deleted, service.id, now)
-    expect(restored).toEqual({ ...original, recent: [] })
+    expect(restored).toEqual(original)
     expect(getCatalog(restored).find(item => item.id === service.id)).toEqual(service)
     expect(getCatalog(restored).find(item => item.id === service.id)).not.toHaveProperty('modified')
     expect(JSON.stringify(original)).toBe(before)
@@ -418,7 +414,7 @@ describe('服务回收站与永久删除', () => {
     const other = customService({ id: 'custom-other', iconImage: jpeg })
     const original = {
       ...initialPreferences(), customServices: [other, custom],
-      favorites: ['digital', custom.id, other.id], recent: [custom.id, other.id],
+      favorites: ['digital', custom.id, other.id],
     }
     const before = JSON.stringify(original)
     const deleted = trashService(original, custom.id, now)
@@ -432,15 +428,13 @@ describe('服务回收站与永久删除', () => {
     const restored = restoreService(deleted, custom.id, now)
     expect(restored.customServices).toEqual([custom, other])
     expect(restored.favorites).toEqual(original.favorites)
-    expect(restored.recent).toEqual([other.id])
-    expect(restored.recent).toBe(deleted.recent)
     expect(JSON.stringify(original)).toBe(before)
   })
 
   it('删除已编辑内置服务移除修改列表，恢复后仍用之前的图标、二维码及修改状态', () => {
     const override = { ...services[0], kind: 'qr' as const, url: undefined, qr: webp, iconImage: jpeg, name: '个人二维码', modified: false, custom: true }
     const otherOverride = { ...services[1], name: '另一个修改', modified: true }
-    const original = { ...initialPreferences(), serviceOverrides: [override, otherOverride], recent: ['digital'] }
+    const original = { ...initialPreferences(), serviceOverrides: [override, otherOverride] }
     const before = JSON.stringify(original)
     const deleted = trashService(original, 'digital', now)
     expect(deleted.serviceOverrides).toEqual([otherOverride])
@@ -451,7 +445,6 @@ describe('服务回收站与永久删除', () => {
     expect(restored.serviceOverrides).toEqual([deleted.trash[0].service, otherOverride])
     expect(verification(getCatalog(restored).find(item => item.id === 'digital')!)).toContain('用户编辑')
     expect(restored.favorites).toEqual(original.favorites)
-    expect(restored.recent).toEqual([])
     expect(JSON.stringify(original)).toBe(before)
   })
 
@@ -462,14 +455,13 @@ describe('服务回收站与永久删除', () => {
     expect(restoreService(parsePreferences(deleted, now), 'digital', now).serviceOverrides[0].modified).toBe(true)
   })
 
-  it.each([0, 1, 3])('恢复原收藏位置 %s，不恢复最近使用', index => {
-    const original = { ...initialPreferences(), favorites: ['hdu', 'digital', 'pta', 'erke'], recent: ['hdu', 'digital', 'pta', 'erke'] }
+  it.each([0, 1, 3])('恢复原收藏位置 %s', index => {
+    const original = { ...initialPreferences(), favorites: ['hdu', 'digital', 'pta', 'erke'] }
     const id = original.favorites[index]
     const deleted = trashService(original, id, now)
     expect(deleted.trash[0].favoriteIndex).toBe(index)
     const restored = restoreService(deleted, id, now)
     expect(restored.favorites).toEqual(original.favorites)
-    expect(restored.recent).toEqual(original.recent.filter(item => item !== id))
     expect(() => restoreService(restored, id, now)).toThrow(/[\u4e00-\u9fff]/)
   })
 
@@ -520,7 +512,7 @@ describe('服务回收站与永久删除', () => {
     const pruned = pruneTrash(second, now + TRASH_RETENTION_MS)
     expect(pruned.trash).toEqual([second.trash[0]])
     expect(pruned.trash[0]).toBe(second.trash[0])
-    for (const key of ['favorites', 'recent', 'customServices', 'serviceOverrides', 'deletedBuiltinIds'] as const) {
+    for (const key of ['favorites', 'customServices', 'serviceOverrides', 'deletedBuiltinIds'] as const) {
       expect(pruned[key]).toBe(second[key])
     }
     expect(pruneTrash(pruned, now + TRASH_RETENTION_MS)).toBe(pruned)
@@ -558,7 +550,7 @@ describe('服务回收站与永久删除', () => {
     const mixed = trashService(customDeleted, 'digital', now)
     const cleared = emptyTrash(mixed)
     expect(cleared.trash).toEqual([])
-    for (const key of ['favorites', 'recent', 'customServices', 'serviceOverrides', 'deletedBuiltinIds'] as const) {
+    for (const key of ['favorites', 'customServices', 'serviceOverrides', 'deletedBuiltinIds'] as const) {
       expect(cleared[key]).toBe(mixed[key])
     }
     expect(getCatalog(parsePreferences(JSON.parse(JSON.stringify(cleared)), now)).some(item => item.id === 'digital')).toBe(false)
@@ -569,7 +561,7 @@ describe('服务回收站与永久删除', () => {
   it('v3 备份完整往返包含大图、二维码、编辑快照、永久删除及原删除时间', () => {
     const largePng = 'data:image/png;base64,' + btoa(atob(png.split(',')[1]) + '\0'.repeat(134914))
     let preferences: Preferences = {
-      ...initialPreferences(), favorites: ['custom-test', 'digital', 'pta'], recent: ['custom-test', 'digital'],
+      ...initialPreferences(), favorites: ['custom-test', 'digital', 'pta'],
       customServices: [customService({ kind: 'qr', url: undefined, iconImage: largePng, qr: webp, modified: true }), customService({ id: 'custom-active', iconImage: jpeg })],
       serviceOverrides: [{ ...services[0], name: '我的入口', iconImage: png, modified: true }],
     }
@@ -589,24 +581,25 @@ describe('服务回收站与永久删除', () => {
     expect(JSON.stringify(preferences)).toBe(before)
   })
 
-  it('只更新历史不复制自建服务、回收站或图片对象', () => {
-    const original = trashService({ ...initialPreferences(), customServices: [customService({ iconImage: png })] }, 'digital', now)
-    const updated = { ...original, recent: addRecent(original.recent, 'pta') }
+  it('调整收藏顺序不复制自建服务、回收站或图片对象', () => {
+    const original = { ...trashService({ ...initialPreferences(), customServices: [customService({ iconImage: png })] }, 'digital', now), favorites: ['pta', 'hdu'] }
+    const updated = { ...original, favorites: moveFavorite(original.favorites, 1, -1) }
+    expect(updated.favorites).toEqual(['hdu', 'pta'])
     expect(updated.customServices).toBe(original.customServices)
     expect(updated.trash).toBe(original.trash)
     expect(updated.trash[0].service).toBe(original.trash[0].service)
     expect(pruneTrash(updated, now)).toBe(updated)
   })
 
-  it('接受活动和回收站合计 200 自建、最多 227 快照和 27 内置删除标记', () => {
+  it('接受活动和回收站合计 200 自建、最多 228 快照和 28 内置删除标记', () => {
     const customServices = Array.from({ length: 200 }, (_, i) => customService({ id: `custom-${i}` }))
     let preferences: Preferences = {
       ...initialPreferences(), customServices, favorites: [...services.map(item => item.id), ...customServices.map(item => item.id)],
     }
     for (const service of [...customServices].reverse().concat(services)) preferences = trashService(preferences, service.id, now)
-    expect(preferences.trash).toHaveLength(227)
-    expect(preferences.trash.find(item => item.service.id === 'custom-199')!.favoriteIndex).toBe(226)
-    expect(preferences.deletedBuiltinIds).toHaveLength(27)
+    expect(preferences.trash).toHaveLength(228)
+    expect(preferences.trash.find(item => item.service.id === 'custom-199')!.favoriteIndex).toBe(227)
+    expect(preferences.deletedBuiltinIds).toHaveLength(28)
     expect(getCatalog(preferences)).toEqual([])
     expect(parsePreferences(preferences, now)).toEqual(preferences)
     const restored = restoreService(preferences, 'custom-199', now)
@@ -614,7 +607,7 @@ describe('服务回收站与永久删除', () => {
     expect(restored.favorites).toEqual(['custom-199'])
     expect(restored.trash.filter(item => item.service.custom)).toHaveLength(199)
     expect(parsePreferences(restored, now)).toEqual(restored)
-    expect(() => parsePreferences({ ...preferences, trash: [...preferences.trash, entry()] }, now)).toThrow('227')
+    expect(() => parsePreferences({ ...preferences, trash: [...preferences.trash, entry()] }, now)).toThrow('228')
     expect(() => parsePreferences({ ...preferences, deletedBuiltinIds: [...preferences.deletedBuiltinIds, 'digital'] }, now)).toThrow()
   })
 
@@ -695,11 +688,11 @@ describe('服务回收站与永久删除', () => {
     expect(() => pruneTrash({ ...initialPreferences(), trash: [entry(customService(), { deletedAt: Infinity })] }, now)).toThrow('时间')
   })
 
-  it.each([undefined, null, '-1', -2, 0.5, 227, NaN, Infinity])('拒绝非法原收藏位置 %s', favoriteIndex => {
+  it.each([undefined, null, '-1', -2, 0.5, 228, NaN, Infinity])('拒绝非法原收藏位置 %s', favoriteIndex => {
     expect(() => parsePreferences({ ...initialPreferences(), trash: [{ ...entry(), favoriteIndex }] }, now)).toThrow('收藏位置')
   })
 
-  it.each([-1, 0, 226])('接受原收藏位置边界 %s', favoriteIndex => {
+  it.each([-1, 0, 227])('接受原收藏位置边界 %s', favoriteIndex => {
     expect(parsePreferences({ ...initialPreferences(), trash: [entry(customService(), { favoriteIndex })] }, now).trash[0].favoriteIndex).toBe(favoriteIndex)
   })
 
@@ -715,11 +708,10 @@ describe('服务回收站与永久删除', () => {
     for (const input of invalid) expect(() => parsePreferences(input, now)).toThrow(/[\u4e00-\u9fff]/)
   })
 
-  it.each(['favorites', 'recent'])('拒绝 %s 引用已删除、永久删除或回收站中的服务', key => {
+  it('拒绝收藏引用已删除、永久删除或回收站中的服务', () => {
     const base = { ...initialPreferences(), favorites: [], deletedBuiltinIds: ['digital'], trash: [entry()] }
     for (const id of ['digital', 'custom-test', 'missing']) {
-      expect(() => parsePreferences({ ...base, [key]: [id] }, now)).toThrow()
-      expect(() => parsePreferences({ ...base, recordHistory: false, [key]: [id] }, now)).toThrow()
+      expect(() => parsePreferences({ ...base, favorites: [id] }, now)).toThrow()
     }
   })
 
@@ -732,7 +724,7 @@ describe('服务回收站与永久删除', () => {
   })
 })
 
-describe('常用排序和最近使用', () => {
+describe('常用排序', () => {
   it('移动常用不会更改原始数组，越界或无效下标保持不变', () => {
     const current = ['pta', 'custom-test', 'erke']
     expect(moveFavorite(current, 1, -1)).toEqual(['custom-test', 'pta', 'erke'])
@@ -742,14 +734,5 @@ describe('常用排序和最近使用', () => {
     }
     expect(moveFavorite([], 0, 1)).toEqual([])
     expect(current).toEqual(['pta', 'custom-test', 'erke'])
-  })
-
-  it('历史去重、最新在前且最多 8 条，支持自建且不修改原数组', () => {
-    const current = ['pta', 'hdu']
-    expect(addRecent(current, 'hdu')).toEqual(['hdu', 'pta'])
-    expect(addRecent(current, 'custom-test')).toEqual(['custom-test', 'pta', 'hdu'])
-    expect(current).toEqual(['pta', 'hdu'])
-    const previous = services.slice(0, 8).map(item => item.id)
-    expect(addRecent(previous, 'weather')).toEqual(['weather', ...previous.slice(0, 7)])
   })
 })
