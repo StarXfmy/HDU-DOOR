@@ -45,6 +45,10 @@ describe('服务目录与搜索', () => {
     expect(iconOptions.every(option => option.label && option.name)).toBe(true)
   })
 
+  it('Day Plan 入口指向已上线的云端服务器', () => {
+    expect(services.find(item => item.id === 'dayplan')?.url).toBe('https://114-215-174-78.nip.io/')
+  })
+
   it('标题有结果时只返回标题匹配，不混入介绍匹配', () => {
     const result = searchServices(services, '学习')
     expect(result.matchedBy).toBe('title')
