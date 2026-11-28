@@ -7,6 +7,13 @@ export const TRASH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_CUSTOM_SERVICES = 200
 const MAX_TRASH_ENTRIES = MAX_CUSTOM_SERVICES + services.length
 const MAX_FUTURE_MS = 5 * 60 * 1000
+const DAYPLAN_CLOUD_URL = 'https://114-215-174-78.nip.io/'
+const LEGACY_DAYPLAN_URL = /^https:\/\/starxfmy\.github\.io\/xfmy-local\/kernel(?:\/|$)/i
+
+function migrateDayPlanUrl(service: Service): Service {
+  const isDayPlan = service.id === 'dayplan' || service.name.trim().toLowerCase() === 'day plan'
+  return isDayPlan && typeof service.url === 'string' && LEGACY_DAYPLAN_URL.test(service.url) ? { ...service, url: DAYPLAN_CLOUD_URL } : service
+}
 
 export interface TrashEntry {
   service: Service
@@ -83,7 +90,7 @@ function validateServiceLists(customInput: unknown, overridesInput: unknown) {
   const ids = new Set<string>()
   const customServices: Service[] = []
   for (const input of customInput) {
-    const service = validateService(input)
+    const service = migrateDayPlanUrl(validateService(input))
     if (!isCustomId(service.id)) {
       throw new Error('自建服务 ID 必须以 custom- 开头，且不能与内置服务相同。')
     }
@@ -93,7 +100,7 @@ function validateServiceLists(customInput: unknown, overridesInput: unknown) {
   }
   const serviceOverrides: Service[] = []
   for (const input of overridesInput) {
-    const service = validateService(input)
+    const service = migrateDayPlanUrl(validateService(input))
     if (!serviceById.has(service.id)) throw new Error('服务修改必须对应现有的内置服务 ID。')
     if (ids.has(service.id)) throw new Error('备份中存在重复的服务 ID。')
     ids.add(service.id)

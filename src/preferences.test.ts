@@ -49,6 +49,31 @@ describe('服务目录与搜索', () => {
     expect(services.find(item => item.id === 'dayplan')?.url).toBe('https://114-215-174-78.nip.io/')
   })
 
+  it('自动把本地修改过的旧 Day Plan 地址迁移到云端服务器', () => {
+    const builtin = services.find(item => item.id === 'dayplan')!
+    const preferences = {
+      ...initialPreferences(),
+      serviceOverrides: [{ ...builtin, url: 'https://starxfmy.github.io/xfmy-local/kernel/', modified: true }],
+    }
+    const dayplan = getCatalog(preferences).find(item => item.id === 'dayplan')
+    expect(dayplan?.url).toBe('https://114-215-174-78.nip.io/')
+    expect(dayplan?.name).toBe(builtin.name)
+  })
+
+  it('手动添加的旧 Day Plan 入口也迁移，但不改其他自定义地址', () => {
+    const builtin = services.find(item => item.id === 'dayplan')!
+    const preferences = {
+      ...initialPreferences(),
+      customServices: [
+        { ...builtin, id: 'custom-dayplan', url: 'https://starxfmy.github.io/xfmy-local/kernel/', custom: true },
+        { ...builtin, id: 'custom-other', name: '其他入口', url: 'https://example.com/', custom: true },
+      ],
+    }
+    const catalog = getCatalog(preferences)
+    expect(catalog.find(item => item.id === 'custom-dayplan')?.url).toBe('https://114-215-174-78.nip.io/')
+    expect(catalog.find(item => item.id === 'custom-other')?.url).toBe('https://example.com/')
+  })
+
   it('标题有结果时只返回标题匹配，不混入介绍匹配', () => {
     const result = searchServices(services, '学习')
     expect(result.matchedBy).toBe('title')
