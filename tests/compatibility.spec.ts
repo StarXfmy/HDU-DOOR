@@ -15,6 +15,7 @@ test('启动时自动读取原有收藏，第一次编辑后安全升级并丢�
   await page.getByRole('button', { name: '编辑服务', exact: true }).click()
   await page.getByLabel('服务名称', { exact: false }).fill('我的 PTA')
   await page.getByRole('button', { name: '保存服务', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveAccessibleName('我的 PTA')
   const stored = await page.evaluate(k => JSON.parse(localStorage.getItem(k)!), key)
   expect(stored.version).toBe(3)
   expect(stored.favorites).toEqual(oldData.favorites)

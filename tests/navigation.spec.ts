@@ -22,7 +22,7 @@ async function importJson(page: Page, value: unknown) {
 }
 
 test.beforeEach(async ({ context, page }) => {
-  await context.route('https://**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>External navigation test</title>' }))
+  await context.route('https://**', route => route.fulfill({ status: 200, contentType: 'text/html', headers: { 'access-control-allow-origin': '*' }, body: '<title>External navigation test</title>' }))
   await page.goto('/')
 })
 
@@ -82,6 +82,49 @@ test('添加名称网址介绍图标颜色，立即可查并刷新保留', async
   await expect(page.locator('.search-results .card-copy strong')).toHaveText('我的课程笔记')
   const data = await page.evaluate(k => JSON.parse(localStorage.getItem(k)!), key)
   expect(data.customServices[0]).toMatchObject({ name: '我的课程笔记', color: 'purple', icon: 'BookOpen' })
+})
+
+test('新建网页服务自动获取网站图标并随服务保存', async ({ page }) => {
+  const icon = await readFile('public/hui798-code.png')
+  await page.route('https://icons.example/**', route => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/favicon.ico') return route.fulfill({ status: 404, body: '' })
+    return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: icon })
+  })
+  await enter(page)
+  await page.getByRole('button', { name: '添加服务', exact: true }).click()
+  await fillService(page, '自动图标服务', 'https://icons.example/course?id=1')
+  await expect(page.getByRole('status')).toContainText('已获取网站图标')
+  await expect(page.locator('.editor-preview img')).toHaveAttribute('src', /^data:image\/webp/)
+  await page.getByRole('button', { name: '保存服务', exact: true }).click()
+  const stored = await page.evaluate(k => JSON.parse(localStorage.getItem(k)!), key)
+  expect(stored.customServices[0].iconImage).toMatch(/^data:image\/webp/)
+})
+
+test('网站没有图标时自动生成名称文字图标', async ({ page }) => {
+  await page.route('https://no-icon.example/**', route => route.fulfill({ status: 404, body: '' }))
+  await enter(page)
+  await page.getByRole('button', { name: '添加服务', exact: true }).click()
+  await fillService(page, '文字图标服务', 'https://no-icon.example/')
+  await expect(page.getByRole('status')).toContainText('已生成文字图标')
+  await expect(page.locator('.editor-preview img')).toHaveAttribute('src', /^data:image\/webp/)
+  await page.getByRole('button', { name: '保存服务', exact: true }).click()
+  const stored = await page.evaluate(k => JSON.parse(localStorage.getItem(k)!), key)
+  expect(stored.customServices[0].iconImage).toMatch(/^data:image\/webp/)
+})
+
+test('手动选择内置图标后不再自动获取或覆盖', async ({ page }) => {
+  let iconRequests = 0
+  page.on('request', request => { if (request.url().startsWith('https://manual.example/')) iconRequests += 1 })
+  await page.route('https://manual.example/**', route => route.fulfill({ status: 404, body: '' }))
+  await enter(page)
+  await page.getByRole('button', { name: '添加服务', exact: true }).click()
+  await fillService(page, '手动图标服务', 'https://manual.example/')
+  await page.getByRole('button', { name: '选择书本图标', exact: true }).click()
+  await page.waitForTimeout(800)
+  expect(iconRequests).toBe(0)
+  await expect(page.locator('.editor-preview img')).toHaveCount(0)
+  await expect(page.locator('.editor-preview svg')).toBeVisible()
 })
 
 test('编辑内置服务后常用与搜索立即改变，原有收藏不丢失', async ({ page }) => {
@@ -326,6 +369,7 @@ for (const width of [1440, 768, 390, 320]) {
     await page.screenshot({ path: `.checks/${testInfo.project.name}-main-${width}.png`, animations: 'disabled' })
     await page.getByRole('button', { name: '添加服务', exact: true }).click()
     await fillService(page, '适配测试服务'.repeat(8), 'https://www.hdu.edu.cn/', '长介绍内容'.repeat(70))
+    await page.getByRole('button', { name: '选择地球图标', exact: true }).click()
     await expect(page.getByLabel('服务名称', { exact: false })).toBeVisible()
     expect(await dialog.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true)
     await page.getByRole('button', { name: '保存服务', exact: true }).click()
