@@ -10,6 +10,7 @@ import { catalogDate, imageUrl, kindNames, searchServices, sourceUrl, verificati
 import type { Service } from './data'
 import { emptyTrash, getCatalog, initialPreferences, moveFavorite, parsePreferences, permanentlyDeleteService, pruneTrash, restoreService, STORAGE_KEY, trashService, TRASH_RETENTION_MS } from './preferences'
 import type { Preferences } from './preferences'
+import { readUsage, recordUsage, sortByUsage } from './usage'
 
 const storageWarning = ref('')
 const storageBlocked = ref(false)
@@ -24,6 +25,7 @@ function loadPreferences() {
   }
 }
 const preferences = ref(loadPreferences())
+const usage = ref(readUsage(localStorage))
 const query = ref('')
 const allExpanded = ref(false)
 const editingFavorites = ref(false)
@@ -53,7 +55,10 @@ watch(preferences, value => {
 }, { deep: true, flush: 'sync' })
 const catalog = computed(() => getCatalog(preferences.value))
 const byId = computed(() => new Map(catalog.value.map(service => [service.id, service])))
-const favorites = computed(() => preferences.value.favorites.map(id => byId.value.get(id)!))
+const favorites = computed(() => {
+  const ids = editingFavorites.value ? preferences.value.favorites : sortByUsage(preferences.value.favorites, usage.value)
+  return ids.map(id => byId.value.get(id)!)
+})
 const trashedSelection = computed(() => preferences.value.trash.find(item => item.service.id === trashId.value))
 const customCount = computed(() => preferences.value.customServices.length + preferences.value.trash.filter(item => item.service.custom).length)
 const selected = computed(() => byId.value.get(selectedId.value))
@@ -84,6 +89,9 @@ function toggleFavorite(id: string) {
 function showDetails(service: Service) {
   selectedId.value = service.id
   modal.value = 'service'
+}
+function trackUsage(id: string) {
+  try { usage.value = recordUsage(localStorage, id) } catch {}
 }
 function openEditor(service?: Service) {
   editingId.value = service?.id || ''
@@ -246,7 +254,7 @@ onBeforeUnmount(() => {
 
   <ServiceEditor v-if="modal === 'editor'" :service="editing" :limit-reached="customCount >= 200" @save="saveService" @close="closeEditor" />
 
-  <AppDialog v-if="modal === 'service' && selected" :title="selected.name" @close="modal = null"><div class="detail-summary"><span class="service-icon" :class="selected.color"><ServiceIcon :name="selected.icon" :image="selected.iconImage" :size="28" /></span><div><p v-if="selected.description">{{ selected.description }}</p><span class="detail-kind">{{ kindNames[selected.kind] }}<template v-if="selected.client"> · {{ selected.client }}</template></span></div></div><p v-if="selected.note" class="service-note">{{ selected.note }}</p><p v-if="selected.login" class="service-note">{{ selected.login }}</p><div v-if="selected.kind === 'qr' && selected.qr" class="qr-section"><img :src="imageUrl(selected.qr)" :alt="`${selected.name}入口图片`" /><a class="secondary-button" :href="imageUrl(selected.qr)" :download="`${selected.id}-code.${selected.qr.startsWith('data:image/webp') ? 'webp' : selected.qr.includes('jpeg') || selected.qr.endsWith('.jpg') ? 'jpg' : 'png'}`"><Download :size="16" />保存图片</a></div><div v-if="selected.url" class="detail-url">{{ selected.url }}</div><details class="service-provenance"><summary>来源与使用条件</summary><p v-if="selected.custom || selected.modified">你{{ selected.custom ? '添加' : '修改' }}的服务，网址与使用条件未经本站核实。</p><template v-else><p>{{ selected.campus === 'unknown' ? '校区适用范围待核实，请以目标平台说明为准。' : '具体服务范围与登录要求以目标平台为准。' }}</p><p>{{ verification(selected) }}。检查日期 {{ catalogDate }}。</p><a :href="sourceUrl" target="_blank" rel="noopener noreferrer">查看初始目录来源<ArrowUpRight :size="13" /></a></template></details><div class="detail-tools"><button class="text-button" @click="openEditor(selected)"><Pencil :size="16" />编辑服务</button><button class="text-button" @click="toggleFavorite(selected.id)"><Star :size="16" :fill="preferences.favorites.includes(selected.id) ? 'currentColor' : 'none'" />{{ preferences.favorites.includes(selected.id) ? '取消收藏' : '加入常用' }}</button><button class="text-button danger-text" @click="modal = 'delete'"><Trash2 :size="16" />删除</button></div><a v-if="selected.kind === 'web' && selected.url" class="primary-button full-width open-website" :href="selected.url" target="_blank" rel="noopener noreferrer" @click="modal = null">打开网址<ArrowUpRight :size="18" /></a><button v-else class="primary-button full-width" @click="modal = null">知道了</button></AppDialog>
+  <AppDialog v-if="modal === 'service' && selected" :title="selected.name" @close="modal = null"><div class="detail-summary"><span class="service-icon" :class="selected.color"><ServiceIcon :name="selected.icon" :image="selected.iconImage" :size="28" /></span><div><p v-if="selected.description">{{ selected.description }}</p><span class="detail-kind">{{ kindNames[selected.kind] }}<template v-if="selected.client"> · {{ selected.client }}</template></span></div></div><p v-if="selected.note" class="service-note">{{ selected.note }}</p><p v-if="selected.login" class="service-note">{{ selected.login }}</p><div v-if="selected.kind === 'qr' && selected.qr" class="qr-section"><img :src="imageUrl(selected.qr)" :alt="`${selected.name}入口图片`" /><a class="secondary-button" :href="imageUrl(selected.qr)" :download="`${selected.id}-code.${selected.qr.startsWith('data:image/webp') ? 'webp' : selected.qr.includes('jpeg') || selected.qr.endsWith('.jpg') ? 'jpg' : 'png'}`"><Download :size="16" />保存图片</a></div><div v-if="selected.url" class="detail-url">{{ selected.url }}</div><details class="service-provenance"><summary>来源与使用条件</summary><p v-if="selected.custom || selected.modified">你{{ selected.custom ? '添加' : '修改' }}的服务，网址与使用条件未经本站核实。</p><template v-else><p>{{ selected.campus === 'unknown' ? '校区适用范围待核实，请以目标平台说明为准。' : '具体服务范围与登录要求以目标平台为准。' }}</p><p>{{ verification(selected) }}。检查日期 {{ catalogDate }}。</p><a :href="sourceUrl" target="_blank" rel="noopener noreferrer">查看初始目录来源<ArrowUpRight :size="13" /></a></template></details><div class="detail-tools"><button class="text-button" @click="openEditor(selected)"><Pencil :size="16" />编辑服务</button><button class="text-button" @click="toggleFavorite(selected.id)"><Star :size="16" :fill="preferences.favorites.includes(selected.id) ? 'currentColor' : 'none'" />{{ preferences.favorites.includes(selected.id) ? '取消收藏' : '加入常用' }}</button><button class="text-button danger-text" @click="modal = 'delete'"><Trash2 :size="16" />删除</button></div><a v-if="selected.kind === 'web' && selected.url" class="primary-button full-width open-website" :href="selected.url" target="_blank" rel="noopener noreferrer" @click="trackUsage(selected.id); modal = null">打开网址<ArrowUpRight :size="18" /></a><button v-else class="primary-button full-width" @click="modal = null">知道了</button></AppDialog>
 
   <AppDialog v-if="modal === 'delete' && selected" title="移到回收站？" @close="modal = 'service'"><p class="dialog-intro">“{{ selected.name }}”会从服务、常用和最近使用中移除，在回收站保留 7 天。恢复时会保留服务内容和原收藏位置。</p><div class="dialog-actions"><button class="secondary-button" @click="modal = 'service'">取消</button><button class="danger-button" @click="deleteService">移到回收站</button></div></AppDialog>
 

@@ -241,6 +241,23 @@ test('自定义服务删除确认，同时清理收藏', async ({ page }) => {
   expect(data).not.toHaveProperty('recent')
 })
 
+test('我的常用按使用频率降序，整理时显示原手动顺序', async ({ context, page }) => {
+  await context.addInitScript(() => {
+    localStorage.setItem('hdu-quick-station:usage:v1', JSON.stringify({
+      smart: { count: 1, lastUsedAt: 100 },
+      chaoxing: { count: 2, lastUsedAt: 200 },
+      mooc: { count: 5, lastUsedAt: 300 },
+      dayplan: { count: 3, lastUsedAt: 400 },
+      digital: { count: 0, lastUsedAt: 0 },
+    }))
+  })
+  await page.reload()
+  await enter(page)
+  await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['中国大学 MOOC', 'Day Plan', '学习通', '数你最灵', '数字杭电'])
+  await page.getByRole('button', { name: '整理', exact: true }).click()
+  await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['数你最灵', '学习通', '中国大学 MOOC', 'Day Plan', '数字杭电'])
+})
+
 test('默认常用五个入口，排序立即生效，整理模式只留前后移', async ({ page }) => {
   await enter(page)
   await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['数你最灵', '学习通', '中国大学 MOOC', 'Day Plan', '数字杭电'])
