@@ -70,6 +70,7 @@ const categoryValues: Category[] = ['study', 'campus', 'life', 'tools']
 const campusValues: Campus[] = ['general', 'unknown']
 const kindValues: EntryType[] = ['web', 'qr', 'guide', 'pending']
 const builtInQrImages = new Set(['/hui798-code.png', '/cainiao-code.jpg'])
+const builtInIconImages = new Set(['/erke.png'])
 
 export function normalizeWebUrl(url: string): string {
   if (typeof url !== 'string') throw new Error('网址必须是文字。')
@@ -96,6 +97,7 @@ export function normalizeWebUrl(url: string): string {
 }
 
 function validateImage(value: unknown, label: string): string {
+  if (label === '自定义图标' && typeof value === 'string' && builtInIconImages.has(value)) return value
   if (typeof value !== 'string' || value.length > 180000) {
     throw new Error(`${label}必须是 PNG、JPEG 或 WEBP 图片，且不能超过 180000 个字符。`)
   }
@@ -196,7 +198,7 @@ export const categories = [
 export const services: Service[] = [
   { id: 'digital', name: '数字杭电', description: '学校一站式服务大厅，校园办事集中入口。', category: 'campus', icon: 'PanelsTopLeft', color: 'green', keywords: ['办事', '统一认证', '大厅', '缴费'], kind: 'web', campus: 'general', url: 'https://i.hdu.edu.cn/', login: '个人业务的登录要求以学校页面为准。' },
   { id: 'hduhelp', name: '杭电助手', description: '课表、成绩与考试信息，学习安排随手查。', category: 'study', icon: 'Bot', color: 'blue', keywords: ['课表', '成绩', '考试', 'hduhelp'], kind: 'web', campus: 'general', url: 'https://neo.hduhelp.com/' },
-  { id: 'erke', name: '青春杭电', description: '发现第二课堂活动，让课外生活更丰富。', category: 'study', icon: 'Sprout', color: 'green', keywords: ['二课', '第二课堂', '报名', '活动', '学分'], kind: 'web', campus: 'general', url: 'https://erke.hdu.edu.cn/' },
+  { id: 'erke', name: '二课', description: '通过杭电统一认证登录第二课堂，查看活动与报名。', category: 'study', icon: 'GraduationCap', color: 'green', keywords: ['二课', '第二课堂', '青春杭电', '统一认证', '报名'], kind: 'web', campus: 'general', url: 'https://cas.hdu.edu.cn/cas/login?service=https://erke.hdu.edu.cn/weixin/', iconImage: '/erke.png', note: '统一认证登录后进入二课；部分报名签到功能可能仍需在微信内打开。' },
   { id: 'chaoxing', name: '学习通', description: '查看网络课程、课程资料与学习任务。', category: 'study', icon: 'BookOpen', color: 'orange', keywords: ['超星', '作业', '网课', '课程'], kind: 'web', campus: 'general', url: 'https://i.mooc.chaoxing.com/space/index?ws=1' },
   { id: 'hdu', name: '学校官网', description: '学校新闻、通知公告与官方信息。', category: 'campus', icon: 'Landmark', color: 'blue', keywords: ['杭电', '通知', '新闻', '官网'], kind: 'web', campus: 'general', url: 'https://www.hdu.edu.cn/' },
   { id: 'logistics', name: '杭电后勤生活', description: '后勤报修、缴费与校园生活服务。', category: 'life', icon: 'Wrench', color: 'orange', keywords: ['报修', '宿舍', '维修', '缴费', '后勤'], kind: 'web', campus: 'unknown', url: 'https://s10088.wap.goliveplus.cn/', note: '各校区服务范围尚未核实，请先在目标平台确认所在校区。' },
@@ -207,7 +209,6 @@ export const services: Service[] = [
   { id: 'pta', name: 'PTA', description: '程序设计练习与课程实验辅助平台。', category: 'study', icon: 'Code2', color: 'blue', keywords: ['编程', 'c语言', '代码', '作业', '刷题'], kind: 'web', campus: 'general', url: 'https://pintia.cn/' },
   { id: 'luogu', name: '洛谷', description: '算法练习与信息学竞赛交流社区。', category: 'study', icon: 'Mountain', color: 'purple', keywords: ['算法', '编程', '竞赛', '刷题'], kind: 'web', campus: 'general', url: 'https://www.luogu.com.cn/' },
   { id: 'lab', name: '远程实验管理系统', description: '课程实验与远程实验的管理入口。', category: 'study', icon: 'FlaskConical', color: 'teal', keywords: ['实验', '预约', '远程实验'], kind: 'web', campus: 'unknown', url: 'https://www.ycsypt.com/#/', note: '课程与校区适用范围待核实，请以任课教师通知为准。' },
-  { id: 'erke-mobile', name: '青春杭电 · 微信端', description: '第二课堂的移动端入口，适合手机访问。', category: 'study', icon: 'Smartphone', color: 'green', keywords: ['二课', '第二课堂', '微信', '手机'], kind: 'web', campus: 'general', client: '微信端', url: 'https://erke.hdu.edu.cn/weixin/#/' },
   { id: 'chsi', name: '学信网', description: '学历学籍查询与在线验证服务。', category: 'campus', icon: 'BadgeCheck', color: 'blue', keywords: ['学籍', '学历', '学信', '验证', '证明'], kind: 'web', campus: 'general', url: 'https://www.chsi.com.cn/' },
   { id: 'youth', name: '智慧团建', description: '网上共青团与团组织事务办理。', category: 'campus', icon: 'Flag', color: 'rose', keywords: ['团员', '团组织', '团关系', '转接'], kind: 'web', campus: 'general', url: 'https://zhtj.youth.cn/zhtj/' },
   { id: 'safety', name: '安全教育', description: '校园安全知识学习，通用入口等待确认。', category: 'campus', icon: 'ShieldCheck', color: 'teal', keywords: ['安全', '考试', '教育'], kind: 'pending', campus: 'unknown', note: '尚未收录可公开分享的通用入口。请从学校或辅导员的正式通知进入，不要转发含个人登录信息的链接。' },

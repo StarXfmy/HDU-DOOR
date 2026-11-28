@@ -32,10 +32,10 @@ function legacyPreferences(changes: Record<string, unknown> = {}) {
 }
 
 describe('服务目录与搜索', () => {
-  it('保留 28 个唯一服务、原始来源与入口元信息，所有服务通过验证', () => {
-    expect(services).toHaveLength(28)
-    expect(new Set(services.map(item => item.id)).size).toBe(28)
-    expect(services.filter(item => item.kind === 'web')).toHaveLength(22)
+  it('保留 27 个唯一服务、原始来源与入口元信息，所有服务通过验证', () => {
+    expect(services).toHaveLength(27)
+    expect(new Set(services.map(item => item.id)).size).toBe(27)
+    expect(services.filter(item => item.kind === 'web')).toHaveLength(21)
     expect(services.every(item => item.kind !== 'web' || item.url?.startsWith('https://'))).toBe(true)
     expect(services.every(item => item.kind !== 'qr' || item.qr?.startsWith('/'))).toBe(true)
     expect(sourceUrl).toBe('https://hdu-campus-hub-bkmscmdessk.qoder.zone/')
@@ -43,6 +43,17 @@ describe('服务目录与搜索', () => {
     expect(colorOptions.map(option => option.name)).toEqual(['green', 'blue', 'orange', 'purple', 'teal', 'rose'])
     expect(new Set(iconOptions.map(option => option.name)).size).toBe(iconOptions.length)
     expect(iconOptions.every(option => option.label && option.name)).toBe(true)
+  })
+
+  it('二课默认入口通过统一认证登录、使用官方图标且不包含临时 ticket', () => {
+    const service = services.find(item => item.id === 'erke')
+    expect(service).toMatchObject({
+      name: '二课', kind: 'web', campus: 'general',
+      url: 'https://cas.hdu.edu.cn/cas/login?service=https://erke.hdu.edu.cn/weixin/',
+    })
+    expect(service?.iconImage).toBe('/erke.png')
+    expect(service?.url).not.toContain('ticket=')
+    expect(services.some(item => item.id === 'erke-mobile')).toBe(false)
   })
 
   it('Day Plan 入口指向已上线的云端服务器', () => {
@@ -82,9 +93,9 @@ describe('服务目录与搜索', () => {
   })
 
   it('无标题结果时匹配介绍、关键词和说明，支持跨字段多词交集', () => {
-    expect(searchServices(services, '二课')).toMatchObject({ matchedBy: 'description' })
-    expect(searchServices(services, '二课').items.map(item => item.id)).toEqual(['erke', 'erke-mobile'])
-    expect(searchServices(services, '二课 微信').items.map(item => item.id)).toEqual(['erke-mobile'])
+    expect(searchServices(services, '二课')).toMatchObject({ matchedBy: 'title' })
+    expect(searchServices(services, '二课').items.map(item => item.id)).toEqual(['erke'])
+    expect(searchServices(services, '二课 微信').items.map(item => item.id)).toEqual(['erke'])
     expect(searchServices(services, '个人登录信息').items.map(item => item.id)).toEqual(['safety'])
     expect(searchServices(services, '直饮水 商户').items.map(item => item.id)).toEqual(['water'])
     expect(searchServices(services, '数字 校园')).toEqual({ items: [], matchedBy: 'description' })
@@ -322,7 +333,7 @@ describe('本地收藏备份和迁移', () => {
     }
     const original = JSON.stringify(preferences)
     const catalog = getCatalog(preferences)
-    expect(catalog).toHaveLength(30)
+    expect(catalog).toHaveLength(29)
     expect(catalog.map(item => item.id)).toEqual(['custom-test', 'custom-second', ...services.map(item => item.id)])
     expect(catalog[0].custom).toBe(true)
     expect(catalog[2]).toMatchObject({ id: 'digital', name: '我的数字杭电', modified: true })
@@ -377,8 +388,8 @@ describe('本地收藏备份和迁移', () => {
     const customServices = Array.from({ length: 200 }, (_, i) => customService({ id: `custom-${i}` }))
     const favorites = [...customServices.map(item => item.id), ...services.map(item => item.id)]
     const preferences = { ...initialPreferences(), customServices, favorites }
-    expect(parsePreferences(preferences).favorites).toHaveLength(228)
-    expect(getCatalog(preferences)).toHaveLength(228)
+    expect(parsePreferences(preferences).favorites).toHaveLength(227)
+    expect(getCatalog(preferences)).toHaveLength(227)
     expect(() => parsePreferences({ ...preferences, customServices: [...customServices, customService()] })).toThrow('200')
     expect(() => parsePreferences({ ...preferences, serviceOverrides: [...services, services[0]] })).toThrow()
   })
@@ -620,15 +631,15 @@ describe('服务回收站与永久删除', () => {
     expect(pruneTrash(updated, now)).toBe(updated)
   })
 
-  it('接受活动和回收站合计 200 自建、最多 228 快照和 28 内置删除标记', () => {
+  it('接受活动和回收站合计 200 自建、最多 227 快照和 27 内置删除标记', () => {
     const customServices = Array.from({ length: 200 }, (_, i) => customService({ id: `custom-${i}` }))
     let preferences: Preferences = {
       ...initialPreferences(), customServices, favorites: [...services.map(item => item.id), ...customServices.map(item => item.id)],
     }
     for (const service of [...customServices].reverse().concat(services)) preferences = trashService(preferences, service.id, now)
-    expect(preferences.trash).toHaveLength(228)
-    expect(preferences.trash.find(item => item.service.id === 'custom-199')!.favoriteIndex).toBe(227)
-    expect(preferences.deletedBuiltinIds).toHaveLength(28)
+    expect(preferences.trash).toHaveLength(227)
+    expect(preferences.trash.find(item => item.service.id === 'custom-199')!.favoriteIndex).toBe(226)
+    expect(preferences.deletedBuiltinIds).toHaveLength(27)
     expect(getCatalog(preferences)).toEqual([])
     expect(parsePreferences(preferences, now)).toEqual(preferences)
     const restored = restoreService(preferences, 'custom-199', now)
@@ -636,7 +647,7 @@ describe('服务回收站与永久删除', () => {
     expect(restored.favorites).toEqual(['custom-199'])
     expect(restored.trash.filter(item => item.service.custom)).toHaveLength(199)
     expect(parsePreferences(restored, now)).toEqual(restored)
-    expect(() => parsePreferences({ ...preferences, trash: [...preferences.trash, entry()] }, now)).toThrow('228')
+    expect(() => parsePreferences({ ...preferences, trash: [...preferences.trash, entry()] }, now)).toThrow('227')
     expect(() => parsePreferences({ ...preferences, deletedBuiltinIds: [...preferences.deletedBuiltinIds, 'digital'] }, now)).toThrow()
   })
 
@@ -717,11 +728,11 @@ describe('服务回收站与永久删除', () => {
     expect(() => pruneTrash({ ...initialPreferences(), trash: [entry(customService(), { deletedAt: Infinity })] }, now)).toThrow('时间')
   })
 
-  it.each([undefined, null, '-1', -2, 0.5, 228, NaN, Infinity])('拒绝非法原收藏位置 %s', favoriteIndex => {
+  it.each([undefined, null, '-1', -2, 0.5, 227, NaN, Infinity])('拒绝非法原收藏位置 %s', favoriteIndex => {
     expect(() => parsePreferences({ ...initialPreferences(), trash: [{ ...entry(), favoriteIndex }] }, now)).toThrow('收藏位置')
   })
 
-  it.each([-1, 0, 227])('接受原收藏位置边界 %s', favoriteIndex => {
+  it.each([-1, 0, 226])('接受原收藏位置边界 %s', favoriteIndex => {
     expect(parsePreferences({ ...initialPreferences(), trash: [entry(customService(), { favoriteIndex })] }, now).trash[0].favoriteIndex).toBe(favoriteIndex)
   })
 

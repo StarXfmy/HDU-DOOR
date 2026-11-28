@@ -7,6 +7,7 @@ import {
   Smartphone, Sparkles, Sprout, Store, Wrench,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
+import { imageUrl } from '../data'
 
 defineProps<{ name: string; size?: number; image?: string }>()
 const icons: Record<string, Component> = {
@@ -19,6 +20,6 @@ const icons: Record<string, Component> = {
 </script>
 
 <template>
-  <img v-if="image" :src="image" class="uploaded-icon" alt="" />
+  <img v-if="image" :src="imageUrl(image)" class="uploaded-icon" alt="" />
   <component v-else :is="icons[name] || ArrowUpRight" :size="size || 22" :stroke-width="1.7" aria-hidden="true" />
 </template>

@@ -9,7 +9,7 @@ test('启动时自动读取原有收藏，第一次编辑后安全升级并丢�
   await page.reload()
   await page.getByRole('button', { name: '进入', exact: true }).click()
   await expect(page.locator('.welcome-dialog')).toHaveCount(0)
-  await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['PTA', '青春杭电'])
+  await expect(page.locator('.favorites-grid .card-copy strong')).toHaveText(['PTA', '二课'])
   await expect(page.getByRole('heading', { name: '最近使用', exact: true })).toHaveCount(0)
   await page.locator('.favorites-grid').getByRole('button', { name: '查看PTA详情', exact: true }).click()
   await page.getByRole('button', { name: '编辑服务', exact: true }).click()
@@ -54,7 +54,7 @@ test('浏览器拒绝存储时不阻断服务编辑，明确提示未保存', as
   await page.getByRole('button', { name: '保存服务', exact: true }).click()
   await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('仅在本页有效')
-  await expect(page.locator('.all-grid .service-card')).toHaveCount(29)
+  await expect(page.locator('.all-grid .service-card')).toHaveCount(28)
 })
 
 test('触摸输入、横竖屏切换和缩短视口下保存服务', async ({ browser, browserName }) => {

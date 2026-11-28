@@ -47,7 +47,7 @@ test('同页展开收起全部服务，整卡先详情后打开网址', async ({
   await enter(page)
   await expect(page.getByRole('heading', { name: '最近使用', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部', exact: true }).click()
-  await expect(page.locator('.all-grid .service-card')).toHaveCount(28)
+  await expect(page.locator('.all-grid .service-card')).toHaveCount(27)
   await expect(page.locator('.service-card').getByRole('link')).toHaveCount(0)
   await page.locator('.all-grid').getByRole('button', { name: '查看学校官网详情', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveAccessibleName('学校官网')
@@ -75,7 +75,7 @@ test('添加名称网址介绍图标颜色，立即可查并刷新保留', async
   await expect(page.locator('.detail-summary .service-icon')).toHaveClass(/purple/)
   await page.getByRole('button', { name: '加入常用', exact: true }).click()
   await page.getByRole('button', { name: '关闭弹窗', exact: true }).click()
-  await expect(page.locator('.all-grid .service-card')).toHaveCount(29)
+  await expect(page.locator('.all-grid .service-card')).toHaveCount(28)
   await expect(page.locator('.favorites-grid .service-card')).toHaveCount(6)
   await page.reload()
   await page.getByRole('searchbox').fill('我的课程')
@@ -127,6 +127,17 @@ test('手动选择内置图标后不再自动获取或覆盖', async ({ page }) 
   await expect(page.locator('.editor-preview svg')).toBeVisible()
 })
 
+test('二课默认入口使用官方图标和统一认证网址', async ({ page }) => {
+  await enter(page)
+  await page.getByRole('button', { name: '展开全部', exact: true }).click()
+  await page.locator('.all-grid').getByRole('button', { name: '查看二课详情', exact: true }).click()
+  await expect(page.locator('.detail-summary img')).toHaveAttribute('src', /\/erke\.png$/)
+  await expect(page.getByRole('link', { name: '打开网址', exact: true })).toHaveAttribute(
+    'href',
+    'https://cas.hdu.edu.cn/cas/login?service=https://erke.hdu.edu.cn/weixin/',
+  )
+})
+
 test('编辑内置服务后常用与搜索立即改变，原有收藏不丢失', async ({ page }) => {
   await enter(page)
   await page.locator('.favorites-grid').getByRole('button', { name: '查看数字杭电详情', exact: true }).click()
@@ -159,7 +170,8 @@ test('标题命中时不混入介绍匹配，没有标题命中才搜内容和�
   await expect(page.locator('.search-results .card-copy strong')).toHaveText('学习收藏夹')
   await expect(page.locator('.search-fallback')).toHaveText('按内容介绍匹配')
   await page.getByRole('searchbox').fill('二课')
-  await expect(page.locator('.search-results .service-card')).toHaveCount(2)
+  await expect(page.locator('.search-results .service-card')).toHaveCount(1)
+  await expect(page.locator('.search-results .card-copy strong')).toHaveText('二课')
   await page.getByRole('searchbox').fill('zznotfound')
   await expect(page.getByRole('heading', { name: '没有找到相关服务' })).toBeVisible()
   await page.getByRole('searchbox').fill('  pTa  ')
